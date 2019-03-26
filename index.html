@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<title>Spot your ride</title>
+	<style>
+		body,
+		div {
+			margin: 0 auto;
+			text-align: center;
+			background-color: #222222;
+		}
+
+		@font-face {
+			/* Font from https://www.attrill.uk/fonts/uknumberplate/ */
+			font-family: "UKNumberPlate";
+			src: url("UKNumberPlate.ttf") format("truetype")
+		}
+
+		@keyframes drop {
+			from {
+				top: 0px;
+			}
+
+			to {
+				top: 90vh;
+			}
+		}
+
+		div.play-area {
+			width: 100vw;
+			height: 100vh;
+		}
+
+		div.plate {
+			margin: 0;
+			padding: 2px;
+			display: inline-block;
+			border: 2px solid #111111;
+			border-radius: 5px;
+			background-color: #EEEEEE;
+			font-size: 2em;
+			font-family: UKNumberPlate;
+			position: absolute;
+			animation-name: drop;
+			animation-duration: 6s;
+			animation-timing-function: linear;
+			-webkit-user-select: none;
+		}
+
+		div.announcement {
+			margin: 8px;
+			padding: 8px;
+			/* display: inline-block; */
+			display: block;
+			border: 8px solid #EEEEEE;
+			border-radius: 20px;
+			background-color: 111111;
+			color: #EEEEEE;
+			font-size: 8em;
+			font-family: UKNumberPlate;
+			-webkit-user-select: none;
+		}
+
+		div.container {
+			margin: auto;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+
+		div.instructions {
+			margin: auto;
+			/* display: inline-block; */
+			display: block;
+			color: #EEEEEE;
+			font-size: 2em;
+			font-family: UKNumberPlate;
+			text-transform: uppercase;
+		}
+	</style>
+	<script>
+		function generateRandomLetter() {
+			return String.fromCharCode(Math.floor(26 * Math.random()) + 65);
+		}
+
+		function generatePlateString() {
+			let plate_prefix = "S";
+
+			//No vowels in second letter
+			let letter = null;
+			while (letter == null) {
+				letter = generateRandomLetter()
+				if (/[AEIOU]/.test(letter)) {
+					letter = null;
+				}
+			}
+			plate_prefix += letter;
+
+			//SKY specifically not allowed
+			//I or O still not allowed
+			if (letter == "K") {
+				letter = null;
+				while (letter == null) {
+					letter = generateRandomLetter()
+					if (/[IOY]/.test(letter)) {
+						letter = null;
+					}
+				}
+				plate_prefix += letter;
+			} else {
+				letter = null;
+				while (letter == null) {
+					letter = generateRandomLetter()
+					if (/[IO]/.test(letter)) {
+						letter = null;
+					}
+				}
+				plate_prefix += letter;
+			}
+
+			const plate_numbers = [
+				Math.floor(10 * Math.random()),
+				Math.floor(10 * Math.random()),
+				Math.floor(10 * Math.random()),
+				Math.floor(10 * Math.random())
+			];
+
+			//Checksum
+			//Convert last two prefix letters to numbers i.e. A=1
+			//Elemental multiply (9, 4, 5, 4, 3, 2)
+			//Sum and divide by 19
+			//Remainder corresponds to (A, Z, Y, X, U, T, S, R, P, M, L, K, J, H, G, E, D, C, B)
+			let checksum = 0;
+			checksum += 9 * (plate_prefix.charCodeAt(1) - 64);
+			checksum += 4 * (plate_prefix.charCodeAt(2) - 64);
+			for (let i = 0; i < 4; i++) {
+				checksum += (5 - i) * plate_numbers[i];
+			}
+			const plate_suffix = ["A", "Z", "Y", "X", "U", "T", "S", "R", "P", "M", "L", "K", "J", "H", "G", "E", "D", "C", "B"][checksum % 19];
+
+			let leading_zero = true;
+			let plate = plate_prefix;
+			for (let i = 0; i < 4; i++) {
+				if (leading_zero && plate_numbers[i] == 0) {
+					//Skip leading zeros
+				} else {
+					leading_zero = false;
+					plate += plate_numbers[i].toString();
+				}
+			}
+			plate += plate_suffix;
+
+			return plate;
+		}
+
+		function removeTriggerElement(event) {
+			const play_area = document.querySelector(".play-area");
+			let target = event.srcElement;
+			while (target != null) {
+				if (target.parentElement == play_area) {
+					play_area.removeChild(target);
+				} else {
+					target = target.parentElement;
+				}
+			}
+		}
+
+		const PLATE_COUNT = 100;
+		let plate_strings = [];
+		let target_plate = "";
+		let timeouts = [];
+		let start_time_ms = 0;
+
+		function initialiseGame() {
+			//Remove all containers
+			let containers = document.querySelectorAll(".container");
+			for (let container of containers) {
+				container.remove();
+			}
+
+			//Reset variables
+			plate_strings = [];
+			target_plate = "";
+			timeouts = [];
+			start_time_ms = 0;
+
+			//Generate plates
+			for (let i = 0; i < PLATE_COUNT; i++) {
+				plate_strings.push(generatePlateString());
+			}
+
+			//Select target
+			target_plate = plate_strings[Math.floor(plate_strings.length * Math.random())];
+
+			let container = document.createElement("div");
+			container.classList.add("container");
+
+			//Display instructions
+			let instructions1 = document.createElement("div");
+			instructions1.classList.add("instructions");
+			instructions1.innerHTML = "Look out for your ride!";
+			container.appendChild(instructions1);
+
+			//Display target
+			let element = document.createElement("div");
+			element.classList.add("announcement");
+			element.innerHTML = target_plate;
+			container.appendChild(element);
+
+			//Display instructions
+			let instructions2 = document.createElement("div");
+			instructions2.classList.add("instructions");
+			instructions2.innerHTML = "Click anywhere when you find it";
+			container.appendChild(instructions2);
+
+			container.addEventListener("click", startGame);
+			document.querySelector(".play-area").appendChild(container);
+		}
+
+		function cleanup() {
+			//Clear all timeouts
+			for (let timeout of timeouts) {
+				clearTimeout(timeout);
+			}
+
+			//Remove all plates
+			let plates = document.querySelectorAll(".plate");
+			for (let plate of plates) {
+				plate.remove();
+			}
+		}
+
+		function handleLose(has_missed_target) {
+			document.querySelector(".play-area").removeEventListener("click", checkWinLose);
+
+			let container = document.createElement("div");
+			container.classList.add("container");
+
+			//Display instructions
+			let instructions1 = document.createElement("div");
+			instructions1.classList.add("instructions");
+			instructions1.innerHTML = "Terrible!";
+			container.appendChild(instructions1);
+
+			//Announce fail
+			let element = document.createElement("div");
+			element.classList.add("announcement");
+			element.innerHTML = "FAILED";
+			container.appendChild(element);
+
+			//Display instructions
+			let instructions2 = document.createElement("div");
+			instructions2.classList.add("instructions");
+			if (has_missed_target) {
+				instructions2.innerHTML = "You missed the target";
+			} else {
+				instructions2.innerHTML = "You jumped the gun";
+			}
+			container.appendChild(instructions2);
+
+			container.addEventListener("click", initialiseGame);
+			document.querySelector(".play-area").appendChild(container);
+
+			cleanup();
+		}
+
+		function handleWin(time_ms) {
+			document.querySelector(".play-area").removeEventListener("click", checkWinLose);
+
+			let container = document.createElement("div");
+			container.classList.add("container");
+
+			//Display instructions
+			let instructions1 = document.createElement("div");
+			instructions1.classList.add("instructions");
+			if (time_ms < 1000) {
+				instructions1.innerHTML = "Impressive!";
+			} else if (time_ms < 2000) {
+				instructions1.innerHTML = "Pretty good!";
+			} else if (time_ms < 3000) {
+				instructions1.innerHTML = "Alright I guess";
+			} else if (time_ms < 4000) {
+				instructions1.innerHTML = "Meh, pretty slow";
+			} else if (time_ms < 5000) {
+				instructions1.innerHTML = "Wake up!";
+			} else {
+				instructions1.innerHTML = "You barely made it";
+			}
+
+			container.appendChild(instructions1);
+
+			//Announce win
+			let element = document.createElement("div");
+			element.classList.add("announcement");
+			element.innerHTML = "YOU WON";
+			container.appendChild(element);
+
+			//Display instructions
+			let instructions2 = document.createElement("div");
+			instructions2.classList.add("instructions");
+			instructions2.innerHTML = "You found it in " + (time_ms / 1000).toString() + "s";;
+			container.appendChild(instructions2);
+
+			container.addEventListener("click", initialiseGame);
+			document.querySelector(".play-area").appendChild(container);
+
+			cleanup();
+		}
+
+		function checkWinLose(event) {
+			if (start_time_ms != 0) {
+				//Win
+				let date = new Date();
+				const elapsed_time_ms = date.getTime() - start_time_ms;
+				handleWin(elapsed_time_ms);
+			} else {
+				//Lose
+				handleLose();
+			}
+		}
+
+		function removePlate(event) {
+			if (event.srcElement.innerHTML === target_plate) {
+				//Fail
+				handleLose(true);
+			}
+			removeTriggerElement(event);
+		}
+
+		function startGame(event) {
+			document.querySelector(".play-area").addEventListener("click", checkWinLose);
+			let timeout = 0;
+			for (let i = 0; i < PLATE_COUNT; i++) {
+				timeout += 300;
+				timeouts.push(setTimeout(function () {
+					let element = document.createElement("div");
+					element.classList.add("plate");
+					element.innerHTML = plate_strings[i];
+					element.style.left = (10 + 80 * Math.random()).toString() + "vw";
+					element.addEventListener("animationend", removePlate);
+					document.querySelector(".play-area").appendChild(element);
+					if (plate_strings[i] === target_plate) {
+						let date = new Date();
+						start_time_ms = date.getTime();
+					}
+				}, timeout));
+			}
+			removeTriggerElement(event);
+			event.stopPropagation();
+		}
+
+		window.onload = function () {
+			initialiseGame();
+		}
+	</script>
+</head>
+
+<body>
+	<div class="play-area">
+	</div>
+</body>
+
+</html>
